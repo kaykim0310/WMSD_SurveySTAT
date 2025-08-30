@@ -232,40 +232,6 @@ with tab2:
                     
                     st.success("✅ 계산 완료!")
                     
-                    # 결과 미리보기
-                    st.subheader("📋 계산 결과 미리보기")
-                    result_columns = ['성명', '작업부서3', '작업부서4', '물리환경', '직무요구', 
-                                    '직무자율', '관계갈등', '직업불안정', '조직체계', 
-                                    '보상부적절', '직장문화', '총점']
-                    
-                    # 존재하는 컬럼만 선택
-                    display_columns = [col for col in result_columns if col in df_calculated.columns]
-                    st.dataframe(df_calculated[display_columns].head(10))
-                    
-                    # 통계 요약
-                    st.subheader("📊 영역별 통계 요약")
-                    stat_columns = ['물리환경', '직무요구', '직무자율', '관계갈등', 
-                                  '직업불안정', '조직체계', '보상부적절', '직장문화', '총점']
-                    existing_stat_cols = [col for col in stat_columns if col in df_calculated.columns]
-                    
-                    if existing_stat_cols:
-                        stats_df = df_calculated[existing_stat_cols].describe()
-                        st.dataframe(stats_df.round(2))
-                    
-                    # 부서별 통계 (작업부서3이 있는 경우)
-                    if '작업부서3' in df_calculated.columns:
-                        st.subheader("📊 공정별 직무스트레스 평균")
-                        dept_stats = df_calculated.groupby('작업부서3')[existing_stat_cols].mean().round(2)
-                        dept_stats.index.name = '공정명'
-                        st.dataframe(dept_stats)
-                        
-                        # 부서별 상세 통계 (작업부서4까지 있는 경우)
-                        if '작업부서4' in df_calculated.columns:
-                            st.subheader("📊 세부 공정별 직무스트레스 평균")
-                            detailed_stats = df_calculated.groupby(['작업부서3', '작업부서4'])[existing_stat_cols].mean().round(2)
-                            detailed_stats.index.names = ['공정명', '세부공정']
-                            st.dataframe(detailed_stats)
-                    
                     # 성별 통계 추가
                     if '성별' in df_calculated.columns:
                         st.subheader("📊 성별 직무스트레스 통계")
@@ -277,6 +243,10 @@ with tab2:
                         })
                         
                         # 성별 평균과 표준편차 계산
+                        stat_columns = ['물리환경', '직무요구', '직무자율', '관계갈등', 
+                                      '직업불안정', '조직체계', '보상부적절', '직장문화', '총점']
+                        existing_stat_cols = [col for col in stat_columns if col in df_calculated.columns]
+                        
                         gender_stats = []
                         
                         for gender, gender_name in [('M', '남'), ('F', '여')]:
@@ -287,30 +257,46 @@ with tab2:
                                 mean_values = gender_data[existing_stat_cols].mean()
                                 mean_row = {'성별': gender_name, '통계': '평균'}
                                 for col in existing_stat_cols:
-                                    mean_row[col] = round(mean_values[col], 2)
+                                    mean_row[col] = round(mean_values[col], 2) if not pd.isna(mean_values[col]) else '-'
                                 gender_stats.append(mean_row)
                                 
                                 # 표준편차
                                 std_values = gender_data[existing_stat_cols].std()
                                 std_row = {'성별': gender_name, '통계': '표준편차'}
                                 for col in existing_stat_cols:
-                                    std_row[col] = round(std_values[col], 2)
+                                    std_row[col] = round(std_values[col], 2) if not pd.isna(std_values[col]) else '-'
                                 gender_stats.append(std_row)
                         
                         gender_stats_df = pd.DataFrame(gender_stats)
                         gender_stats_df = gender_stats_df.set_index(['성별', '통계'])
                         st.dataframe(gender_stats_df)
                         
-                        # 공정별 성별 통계
-                        if '작업부서3' in df_calculated.columns:
+                        # 공정별 성별 통계 (평균, 표준편차, 초과자 포함)
+                        if '작업부서3' in df_calculated.columns and '작업부서1' in df_calculated.columns and '작업부서2' in df_calculated.columns:
                             st.subheader("📊 공정별 성별 직무스트레스 통계")
+                            
+                            # 성별 기준값 정의
+                            male_criteria = {
+                                '물리환경': 66.7, '직무요구': 55.6, '직무자율': 58.4, '관계갈등': 62.6,
+                                '직업불안정': 60.1, '조직체계': 66.7, '보상부적절': 50.1, '직장문화': 41.7, '총점': 61.2
+                            }
+                            
+                            female_criteria = {
+                                '물리환경': 55.6, '직무요구': 62.0, '직무자율': 62.0, '관계갈등': 77.8,
+                                '직업불안정': 77.8, '조직체계': 50.1, '보상부적절': 50.1, '직장문화': 56.6, '총점': 56.7
+                            }
                             
                             for dept in df_calculated['작업부서3'].unique():
                                 if pd.isna(dept):
                                     continue
                                 
-                                st.write(f"**{dept}**")
                                 dept_data = df_calculated[df_calculated['작업부서3'] == dept]
+                                # 작업부서1/작업부서2/작업부서3 형식으로 표시
+                                dept1 = dept_data['작업부서1'].iloc[0] if len(dept_data) > 0 else ''
+                                dept2 = dept_data['작업부서2'].iloc[0] if len(dept_data) > 0 else ''
+                                display_name = f"{dept1}/{dept2}/{dept}"
+                                
+                                st.write(f"**{display_name}**")
                                 
                                 dept_gender_stats = []
                                 for gender, gender_name in [('M', '남'), ('F', '여')]:
@@ -321,15 +307,34 @@ with tab2:
                                         mean_values = gender_dept_data[existing_stat_cols].mean()
                                         mean_row = {'성별': gender_name, '통계': '평균'}
                                         for col in existing_stat_cols:
-                                            mean_row[col] = round(mean_values[col], 2)
+                                            mean_row[col] = round(mean_values[col], 2) if not pd.isna(mean_values[col]) else '-'
                                         dept_gender_stats.append(mean_row)
                                         
                                         # 표준편차
                                         std_values = gender_dept_data[existing_stat_cols].std()
                                         std_row = {'성별': gender_name, '통계': '표준편차'}
                                         for col in existing_stat_cols:
-                                            std_row[col] = round(std_values[col], 2)
+                                            std_row[col] = round(std_values[col], 2) if not pd.isna(std_values[col]) else '-'
                                         dept_gender_stats.append(std_row)
+                                        
+                                        # 초과자수
+                                        exceed_row = {'성별': gender_name, '통계': '초과자수'}
+                                        exceed_rate_row = {'성별': gender_name, '통계': '초과율(%)'}
+                                        
+                                        criteria = male_criteria if gender == 'M' else female_criteria
+                                        total_count = len(gender_dept_data)
+                                        
+                                        for col in existing_stat_cols:
+                                            if col in criteria:
+                                                exceed_count = (gender_dept_data[col] >= criteria[col]).sum()
+                                                exceed_row[col] = exceed_count
+                                                exceed_rate_row[col] = round((exceed_count / total_count * 100), 1) if total_count > 0 else 0
+                                            else:
+                                                exceed_row[col] = '-'
+                                                exceed_rate_row[col] = '-'
+                                        
+                                        dept_gender_stats.append(exceed_row)
+                                        dept_gender_stats.append(exceed_rate_row)
                                 
                                 if dept_gender_stats:
                                     dept_gender_df = pd.DataFrame(dept_gender_stats)
@@ -447,49 +452,359 @@ with tab2:
                     # 결과 다운로드
                     st.subheader("⬇️ 결과 다운로드")
                     
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                        # 원본 데이터 + 계산 결과
-                        df_calculated.to_excel(writer, sheet_name='직무스트레스_계산결과', index=False)
-                        
-                        # 전체 통계 요약
-                        if existing_stat_cols:
-                            stats_df.to_excel(writer, sheet_name='전체_통계요약')
-                        
-                        # 부서별 통계
-                        if '작업부서3' in df_calculated.columns and existing_stat_cols:
-                            dept_stats = df_calculated.groupby('작업부서3')[existing_stat_cols].mean().round(2)
-                            dept_stats.index.name = '공정명'
-                            dept_stats.to_excel(writer, sheet_name='공정별_평균')
+                    col1, col2 = st.columns(2)
+                    
+                    # 자동계산 결과 엑셀
+                    with col1:
+                        output_calc = io.BytesIO()
+                        with pd.ExcelWriter(output_calc, engine='xlsxwriter') as writer:
+                            # 원본 데이터 + 계산 결과
+                            df_calculated.to_excel(writer, sheet_name='직무스트레스_계산결과', index=False)
                             
-                            # 세부 부서별 통계
-                            if '작업부서4' in df_calculated.columns:
-                                detailed_stats = df_calculated.groupby(['작업부서3', '작업부서4'])[existing_stat_cols].mean().round(2)
-                                detailed_stats.index.names = ['공정명', '세부공정']
-                                detailed_stats.to_excel(writer, sheet_name='세부공정별_평균')
+                            # 한 항목 이상 초과자 명단 추가
+                            if '성별' in df_calculated.columns and existing_stat_cols:
+                                # 성별 기준값 정의
+                                male_criteria = {
+                                    '물리환경': 66.7, '직무요구': 55.6, '직무자율': 58.4, '관계갈등': 62.6,
+                                    '직업불안정': 60.1, '조직체계': 66.7, '보상부적절': 50.1, '직장문화': 41.7, '총점': 61.2
+                                }
+                                
+                                female_criteria = {
+                                    '물리환경': 55.6, '직무요구': 62.0, '직무자율': 62.0, '관계갈등': 77.8,
+                                    '직업불안정': 77.8, '조직체계': 50.1, '보상부적절': 50.1, '직장문화': 56.6, '총점': 56.7
+                                }
+                                
+                                # 초과자 찾기
+                                exceed_list = []
+                                for idx, row in df_calculated.iterrows():
+                                    gender = row.get('성별_정규화', '')
+                                    
+                                    if gender == 'M':
+                                        criteria = male_criteria
+                                    elif gender == 'F':
+                                        criteria = female_criteria
+                                    else:
+                                        continue
+                                    
+                                    # 각 항목별 초과 여부 확인
+                                    is_exceed = False
+                                    for area in existing_stat_cols:
+                                        if area in criteria and row[area] >= criteria[area]:
+                                            is_exceed = True
+                                            break
+                                    
+                                    if is_exceed:
+                                        exceed_row = {
+                                            '대상': row.get('대상', ''),
+                                            '성명': row.get('성명', ''),
+                                            '연령': row.get('연령', ''),
+                                            '성별': row.get('성별', ''),
+                                            '작업부서1': row.get('작업부서1', ''),
+                                            '작업부서2': row.get('작업부서2', ''),
+                                            '작업부서3': row.get('작업부서3', '')
+                                        }
+                                        
+                                        # 각 영역 점수 추가
+                                        for area in existing_stat_cols:
+                                            exceed_row[area] = round(row[area], 2) if not pd.isna(row[area]) else '-'
+                                        
+                                        exceed_list.append(exceed_row)
+                                
+                                if exceed_list:
+                                    exceed_df = pd.DataFrame(exceed_list)
+                                    exceed_df.to_excel(writer, sheet_name='초과자명단', index=False)
                         
-                        # 성별 통계 추가
-                        if '성별' in df_calculated.columns and 'gender_stats_df' in locals():
-                            gender_stats_df.to_excel(writer, sheet_name='성별_통계')
+                        output_calc.seek(0)
                         
-                        # 성별 기준 초과자 분석 추가
-                        if '성별' in df_calculated.columns and '작업부서3' in df_calculated.columns and 'exceed_df' in locals():
-                            # 부서별 초과자 현황
-                            exceed_df.to_excel(writer, sheet_name='공정별_초과자현황', index=False)
+                        st.download_button(
+                            label="📥 자동계산 결과 다운로드",
+                            data=output_calc.read(),
+                            file_name="직무스트레스_자동계산결과.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="download_calc"
+                        )
+                    
+                    # 통계분석 결과 엑셀
+                    with col2:
+                        output_stats = io.BytesIO()
+                        with pd.ExcelWriter(output_stats, engine='xlsxwriter') as writer:
+                            all_stats_rows = []
+                            
+                            # 전체 성별 통계 추가
+                            if 'gender_stats_df' in locals():
+                                for gender, gender_name in [('M', '남'), ('F', '여')]:
+                                    gender_data = df_calculated[df_calculated['성별_정규화'] == gender]
+                                    
+                                    if len(gender_data) > 0:
+                                        # 평균
+                                        mean_values = gender_data[existing_stat_cols].mean()
+                                        mean_row = {
+                                            '구분': '전체',
+                                            '작업부서1': '-',
+                                            '작업부서2': '-',
+                                            '작업부서3': '전체',
+                                            '성별': gender_name,
+                                            '통계': '평균'
+                                        }
+                                        for col in existing_stat_cols:
+                                            mean_row[col] = round(mean_values[col], 2) if not pd.isna(mean_values[col]) else '-'
+                                        all_stats_rows.append(mean_row)
+                                        
+                                        # 표준편차
+                                        std_values = gender_data[existing_stat_cols].std()
+                                        std_row = {
+                                            '구분': '전체',
+                                            '작업부서1': '-',
+                                            '작업부서2': '-',
+                                            '작업부서3': '전체',
+                                            '성별': gender_name,
+                                            '통계': '표준편차'
+                                        }
+                                        for col in existing_stat_cols:
+                                            std_row[col] = round(std_values[col], 2) if not pd.isna(std_values[col]) else '-'
+                                        all_stats_rows.append(std_row)
+                            
+                            # 공정별 성별 통계 + 초과자 현황
+                            if '작업부서3' in df_calculated.columns and '작업부서1' in df_calculated.columns:
+                                # 성별 기준값 정의
+                                male_criteria = {
+                                    '물리환경': 66.7, '직무요구': 55.6, '직무자율': 58.4, '관계갈등': 62.6,
+                                    '직업불안정': 60.1, '조직체계': 66.7, '보상부적절': 50.1, '직장문화': 41.7, '총점': 61.2
+                                }
+                                
+                                female_criteria = {
+                                    '물리환경': 55.6, '직무요구': 62.0, '직무자율': 62.0, '관계갈등': 77.8,
+                                    '직업불안정': 77.8, '조직체계': 50.1, '보상부적절': 50.1, '직장문화': 56.6, '총점': 56.7
+                                }
+                                
+                                for dept in df_calculated['작업부서3'].unique():
+                                    if pd.isna(dept):
+                                        continue
+                                    
+                                    dept_data = df_calculated[df_calculated['작업부서3'] == dept]
+                                    dept1 = dept_data['작업부서1'].iloc[0] if len(dept_data) > 0 else ''
+                                    dept2 = dept_data['작업부서2'].iloc[0] if len(dept_data) > 0 else ''
+                                    
+                                    for gender, gender_name in [('M', '남'), ('F', '여')]:
+                                        gender_dept_data = dept_data[dept_data['성별_정규화'] == gender]
+                                        
+                                        if len(gender_dept_data) > 0:
+                                            # 평균
+                                            mean_values = gender_dept_data[existing_stat_cols].mean()
+                                            mean_row = {
+                                                '구분': '공정별',
+                                                '작업부서1': dept1,
+                                                '작업부서2': dept2,
+                                                '작업부서3': dept,
+                                                '성별': gender_name,
+                                                '통계': '평균'
+                                            }
+                                            for col in existing_stat_cols:
+                                                mean_row[col] = round(mean_values[col], 2) if not pd.isna(mean_values[col]) else '-'
+                                            all_stats_rows.append(mean_row)
+                                            
+                                            # 표준편차
+                                            std_values = gender_dept_data[existing_stat_cols].std()
+                                            std_row = {
+                                                '구분': '공정별',
+                                                '작업부서1': dept1,
+                                                '작업부서2': dept2,
+                                                '작업부서3': dept,
+                                                '성별': gender_name,
+                                                '통계': '표준편차'
+                                            }
+                                            for col in existing_stat_cols:
+                                                std_row[col] = round(std_values[col], 2) if not pd.isna(std_values[col]) else '-'
+                                            all_stats_rows.append(std_row)
+                                            
+                                            # 초과자수
+                                            exceed_row = {
+                                                '구분': '공정별',
+                                                '작업부서1': dept1,
+                                                '작업부서2': dept2,
+                                                '작업부서3': dept,
+                                                '성별': gender_name,
+                                                '통계': '초과자수'
+                                            }
+                                            
+                                            # 초과율
+                                            exceed_rate_row = {
+                                                '구분': '공정별',
+                                                '작업부서1': dept1,
+                                                '작업부서2': dept2,
+                                                '작업부서3': dept,
+                                                '성별': gender_name,
+                                                '통계': '초과율(%)'
+                                            }
+                                            
+                                            criteria = male_criteria if gender == 'M' else female_criteria
+                                            total_count = len(gender_dept_data)
+                                            
+                                            for col in existing_stat_cols:
+                                                if col in criteria:
+                                                    exceed_count = (gender_dept_data[col] >= criteria[col]).sum()
+                                                    exceed_row[col] = exceed_count
+                                                    exceed_rate_row[col] = round((exceed_count / total_count * 100), 1) if total_count > 0 else 0
+                                                else:
+                                                    exceed_row[col] = '-'
+                                                    exceed_rate_row[col] = '-'
+                                            
+                                            all_stats_rows.append(exceed_row)
+                                            all_stats_rows.append(exceed_rate_row)
+                            
+                            # 전체 초과자 요약 추가
+                            if '성별' in df_calculated.columns and existing_stat_cols:
+                                for gender, gender_name in [('M', '남'), ('F', '여')]:
+                                    criteria = male_criteria if gender == 'M' else female_criteria
+                                    gender_data = df_calculated[df_calculated['성별_정규화'] == gender]
+                                    total_count = len(gender_data)
+                                    
+                                    if total_count > 0:
+                                        # 전체 초과자수
+                                        exceed_row = {
+                                            '구분': '전체',
+                                            '작업부서1': '-',
+                                            '작업부서2': '-',
+                                            '작업부서3': '전체',
+                                            '성별': gender_name,
+                                            '통계': '초과자수'
+                                        }
+                                        
+                                        # 전체 초과율
+                                        exceed_rate_row = {
+                                            '구분': '전체',
+                                            '작업부서1': '-',
+                                            '작업부서2': '-',
+                                            '작업부서3': '전체',
+                                            '성별': gender_name,
+                                            '통계': '초과율(%)'
+                                        }
+                                        
+                                        for col in existing_stat_cols:
+                                            if col in criteria:
+                                                exceed_count = (gender_data[col] >= criteria[col]).sum()
+                                                exceed_row[col] = exceed_count
+                                                exceed_rate_row[col] = round((exceed_count / total_count * 100), 1)
+                                            else:
+                                                exceed_row[col] = '-'
+                                                exceed_rate_row[col] = '-'
+                                        
+                                        all_stats_rows.append(exceed_row)
+                                        all_stats_rows.append(exceed_rate_row)
+                            
+                            # 하나의 시트에 모든 통계 저장
+                            if all_stats_rows:
+                                all_stats_df = pd.DataFrame(all_stats_rows)
+                                all_stats_df.to_excel(writer, sheet_name='통계분석결과', index=False)
+                            
+                            # 성별 기준 초과자 분석 추가
+                            if '성별' in df_calculated.columns and '작업부서3' in df_calculated.columns:
+                                # 성별 기준값 정의
+                                male_criteria = {
+                                    '물리환경': 66.7, '직무요구': 55.6, '직무자율': 58.4, '관계갈등': 62.6,
+                                    '직업불안정': 60.1, '조직체계': 66.7, '보상부적절': 50.1, '직장문화': 41.7, '총점': 61.2
+                                }
+                                
+                                female_criteria = {
+                                    '물리환경': 55.6, '직무요구': 62.0, '직무자율': 62.0, '관계갈등': 77.8,
+                                    '직업불안정': 77.8, '조직체계': 50.1, '보상부적절': 50.1, '직장문화': 56.6, '총점': 56.7
+                                }
+                                
+                                # 부서별 초과자 집계
+                                exceed_results = []
+                                
+                                for dept in df_calculated['작업부서3'].unique():
+                                    if pd.isna(dept):
+                                        continue
+                                    
+                                    dept_data = df_calculated[df_calculated['작업부서3'] == dept]
+                                    dept1 = dept_data['작업부서1'].iloc[0] if len(dept_data) > 0 and '작업부서1' in dept_data.columns else ''
+                                    dept2 = dept_data['작업부서2'].iloc[0] if len(dept_data) > 0 and '작업부서2' in dept_data.columns else ''
+                                    
+                                    # 남성 분석
+                                    male_data = dept_data[dept_data['성별_정규화'] == 'M']
+                                    male_total = len(male_data)
+                                    
+                                    # 여성 분석
+                                    female_data = dept_data[dept_data['성별_정규화'] == 'F']
+                                    female_total = len(female_data)
+                                    
+                                    for area in existing_stat_cols:
+                                        if area in male_criteria:
+                                            # 남성 초과자
+                                            male_exceed = 0
+                                            if male_total > 0:
+                                                male_exceed = (male_data[area] >= male_criteria[area]).sum()
+                                                male_percent = (male_exceed / male_total * 100) if male_total > 0 else 0
+                                            else:
+                                                male_percent = 0
+                                            
+                                            # 여성 초과자
+                                            female_exceed = 0
+                                            if female_total > 0:
+                                                female_exceed = (female_data[area] >= female_criteria[area]).sum()
+                                                female_percent = (female_exceed / female_total * 100) if female_total > 0 else 0
+                                            else:
+                                                female_percent = 0
+                                            
+                                            exceed_results.append({
+                                                '작업부서1': dept1,
+                                                '작업부서2': dept2,
+                                                '작업부서3': dept,
+                                                '영역': area,
+                                                '남성_전체': male_total,
+                                                '남성_초과자': male_exceed,
+                                                '남성_초과율(%)': round(male_percent, 1),
+                                                '여성_전체': female_total,
+                                                '여성_초과자': female_exceed,
+                                                '여성_초과율(%)': round(female_percent, 1)
+                                            })
+                                
+                                if exceed_results:
+                                    exceed_df = pd.DataFrame(exceed_results)
+                                    exceed_df.to_excel(writer, sheet_name='공정별_초과자현황', index=False)
                             
                             # 전체 초과자 요약
-                            if 'total_summary_df' in locals():
-                                total_summary_df.to_excel(writer, sheet_name='전체_초과자요약')
-                    
-                    output.seek(0)
-                    
-                    st.download_button(
-                        label="📥 계산 결과 다운로드 (Excel)",
-                        data=output.read(),
-                        file_name="직무스트레스_분석결과.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_job_stress"
-                    )
+                            if '성별' in df_calculated.columns and existing_stat_cols:
+                                total_summary = []
+                                
+                                for area in existing_stat_cols:
+                                    if area in male_criteria:
+                                        # 전체 남성
+                                        all_male = df_calculated[df_calculated['성별_정규화'] == 'M']
+                                        all_male_total = len(all_male)
+                                        all_male_exceed = (all_male[area] >= male_criteria[area]).sum() if all_male_total > 0 else 0
+                                        all_male_percent = (all_male_exceed / all_male_total * 100) if all_male_total > 0 else 0
+                                        
+                                        # 전체 여성
+                                        all_female = df_calculated[df_calculated['성별_정규화'] == 'F']
+                                        all_female_total = len(all_female)
+                                        all_female_exceed = (all_female[area] >= female_criteria[area]).sum() if all_female_total > 0 else 0
+                                        all_female_percent = (all_female_exceed / all_female_total * 100) if all_female_total > 0 else 0
+                                        
+                                        total_summary.append({
+                                            '영역': area,
+                                            '남성_기준치': male_criteria[area],
+                                            '남성_초과자': f"{all_male_exceed}/{all_male_total}",
+                                            '남성_초과율(%)': round(all_male_percent, 1),
+                                            '여성_기준치': female_criteria[area],
+                                            '여성_초과자': f"{all_female_exceed}/{all_female_total}",
+                                            '여성_초과율(%)': round(all_female_percent, 1)
+                                        })
+                                
+                                if total_summary:
+                                    total_summary_df = pd.DataFrame(total_summary)
+                                    total_summary_df.to_excel(writer, sheet_name='전체_초과자요약', index=False)
+                        
+                        output_stats.seek(0)
+                        
+                        st.download_button(
+                            label="📊 통계분석 결과 다운로드",
+                            data=output_stats.read(),
+                            file_name="직무스트레스_통계분석결과.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="download_stats"
+                        )
                     
         except Exception as e:
             st.error(f"❌ 파일 처리 중 오류가 발생했습니다: {e}")
