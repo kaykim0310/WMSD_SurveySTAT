@@ -254,15 +254,88 @@ with tab2:
                     
                     # 부서별 통계 (작업부서3이 있는 경우)
                     if '작업부서3' in df_calculated.columns:
-                        st.subheader("📊 부서별 직무스트레스 평균")
+                        st.subheader("📊 공정별 직무스트레스 평균")
                         dept_stats = df_calculated.groupby('작업부서3')[existing_stat_cols].mean().round(2)
+                        dept_stats.index.name = '공정명'
                         st.dataframe(dept_stats)
                         
                         # 부서별 상세 통계 (작업부서4까지 있는 경우)
                         if '작업부서4' in df_calculated.columns:
-                            st.subheader("📊 세부 부서별 직무스트레스 평균")
+                            st.subheader("📊 세부 공정별 직무스트레스 평균")
                             detailed_stats = df_calculated.groupby(['작업부서3', '작업부서4'])[existing_stat_cols].mean().round(2)
+                            detailed_stats.index.names = ['공정명', '세부공정']
                             st.dataframe(detailed_stats)
+                    
+                    # 성별 통계 추가
+                    if '성별' in df_calculated.columns:
+                        st.subheader("📊 성별 직무스트레스 통계")
+                        
+                        # 성별 데이터 정규화
+                        df_calculated['성별_정규화'] = df_calculated['성별'].astype(str).str.strip().replace({
+                            '남': 'M', '남성': 'M', 'M': 'M', 'm': 'M', '1': 'M',
+                            '여': 'F', '여성': 'F', 'F': 'F', 'f': 'F', '2': 'F'
+                        })
+                        
+                        # 성별 평균과 표준편차 계산
+                        gender_stats = []
+                        
+                        for gender, gender_name in [('M', '남'), ('F', '여')]:
+                            gender_data = df_calculated[df_calculated['성별_정규화'] == gender]
+                            
+                            if len(gender_data) > 0:
+                                # 평균
+                                mean_values = gender_data[existing_stat_cols].mean()
+                                mean_row = {'성별': gender_name, '통계': '평균'}
+                                for col in existing_stat_cols:
+                                    mean_row[col] = round(mean_values[col], 2)
+                                gender_stats.append(mean_row)
+                                
+                                # 표준편차
+                                std_values = gender_data[existing_stat_cols].std()
+                                std_row = {'성별': gender_name, '통계': '표준편차'}
+                                for col in existing_stat_cols:
+                                    std_row[col] = round(std_values[col], 2)
+                                gender_stats.append(std_row)
+                        
+                        gender_stats_df = pd.DataFrame(gender_stats)
+                        gender_stats_df = gender_stats_df.set_index(['성별', '통계'])
+                        st.dataframe(gender_stats_df)
+                        
+                        # 공정별 성별 통계
+                        if '작업부서3' in df_calculated.columns:
+                            st.subheader("📊 공정별 성별 직무스트레스 통계")
+                            
+                            for dept in df_calculated['작업부서3'].unique():
+                                if pd.isna(dept):
+                                    continue
+                                
+                                st.write(f"**{dept}**")
+                                dept_data = df_calculated[df_calculated['작업부서3'] == dept]
+                                
+                                dept_gender_stats = []
+                                for gender, gender_name in [('M', '남'), ('F', '여')]:
+                                    gender_dept_data = dept_data[dept_data['성별_정규화'] == gender]
+                                    
+                                    if len(gender_dept_data) > 0:
+                                        # 평균
+                                        mean_values = gender_dept_data[existing_stat_cols].mean()
+                                        mean_row = {'성별': gender_name, '통계': '평균'}
+                                        for col in existing_stat_cols:
+                                            mean_row[col] = round(mean_values[col], 2)
+                                        dept_gender_stats.append(mean_row)
+                                        
+                                        # 표준편차
+                                        std_values = gender_dept_data[existing_stat_cols].std()
+                                        std_row = {'성별': gender_name, '통계': '표준편차'}
+                                        for col in existing_stat_cols:
+                                            std_row[col] = round(std_values[col], 2)
+                                        dept_gender_stats.append(std_row)
+                                
+                                if dept_gender_stats:
+                                    dept_gender_df = pd.DataFrame(dept_gender_stats)
+                                    dept_gender_df = dept_gender_df.set_index(['성별', '통계'])
+                                    st.dataframe(dept_gender_df)
+                                st.write("")
                     
                     # 성별 기준 초과자 분석
                     if '성별' in df_calculated.columns and '작업부서3' in df_calculated.columns:
@@ -321,7 +394,7 @@ with tab2:
                                         female_percent = 0
                                     
                                     exceed_results.append({
-                                        '작업부서3': dept,
+                                        '공정명': dept,
                                         '영역': area,
                                         '남성_전체': male_total,
                                         '남성_초과자': male_exceed,
@@ -334,9 +407,9 @@ with tab2:
                         exceed_df = pd.DataFrame(exceed_results)
                         
                         # 부서별로 표시
-                        for dept in exceed_df['작업부서3'].unique():
+                        for dept in exceed_df['공정명'].unique():
                             st.write(f"**{dept}**")
-                            dept_exceed = exceed_df[exceed_df['작업부서3'] == dept].drop('작업부서3', axis=1)
+                            dept_exceed = exceed_df[exceed_df['공정명'] == dept].drop('공정명', axis=1)
                             st.dataframe(dept_exceed.set_index('영역'))
                             st.write("")
                         
@@ -386,17 +459,23 @@ with tab2:
                         # 부서별 통계
                         if '작업부서3' in df_calculated.columns and existing_stat_cols:
                             dept_stats = df_calculated.groupby('작업부서3')[existing_stat_cols].mean().round(2)
-                            dept_stats.to_excel(writer, sheet_name='부서별_평균')
+                            dept_stats.index.name = '공정명'
+                            dept_stats.to_excel(writer, sheet_name='공정별_평균')
                             
                             # 세부 부서별 통계
                             if '작업부서4' in df_calculated.columns:
                                 detailed_stats = df_calculated.groupby(['작업부서3', '작업부서4'])[existing_stat_cols].mean().round(2)
-                                detailed_stats.to_excel(writer, sheet_name='세부부서별_평균')
+                                detailed_stats.index.names = ['공정명', '세부공정']
+                                detailed_stats.to_excel(writer, sheet_name='세부공정별_평균')
+                        
+                        # 성별 통계 추가
+                        if '성별' in df_calculated.columns and 'gender_stats_df' in locals():
+                            gender_stats_df.to_excel(writer, sheet_name='성별_통계')
                         
                         # 성별 기준 초과자 분석 추가
-                        if '성별' in df_calculated.columns and '작업부서3' in df_calculated.columns and exceed_df is not None:
+                        if '성별' in df_calculated.columns and '작업부서3' in df_calculated.columns and 'exceed_df' in locals():
                             # 부서별 초과자 현황
-                            exceed_df.to_excel(writer, sheet_name='부서별_초과자현황', index=False)
+                            exceed_df.to_excel(writer, sheet_name='공정별_초과자현황', index=False)
                             
                             # 전체 초과자 요약
                             if 'total_summary_df' in locals():
