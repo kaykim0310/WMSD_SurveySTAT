@@ -108,7 +108,7 @@ stress-analysis-system/
 
 ### 기술 지원
 - 이슈 등록: [GitHub Issues](https://github.com/[your-username]/stress-analysis-system/issues)
-- 이메일: your-email@example.com
+- 이메일: kangyoon.kim@ihealse.com
 
 ## 📄 라이선스
 
@@ -125,6 +125,7 @@ stress-analysis-system/
 
 ## 📞 연락처
 
-프로젝트 관리자 - [@your-twitter](https://twitter.com/your-twitter) - your-email@example.com
+프로젝트 관리자 - kangyoon.kim@ihealse.com
 
-프로젝트 링크: [https://github.com/[your-username]/stress-analysis-system](https://github.com/[your-username]/stress-analysis-system)
+
+프로젝트 링크: [https://github.com/[kykim0310]/stress-analysis-system](https://github.com/[your-username]/stress-analysis-system)
